@@ -1,0 +1,10 @@
+# Common build directory
+build/
+
+# Visual Studio Code Generated Files
+.vscode/
+
+# Visual Studio Generated Files
+.vs/
+out/
+CMakeSettings.json
