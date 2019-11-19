@@ -6,6 +6,9 @@ project(TensorOpt)
 set(TENSOROPT_BACKEND "" CACHE STRING "Backend to compile")
 # The list of backends below should match the subdirectories of src/backends
 set_property(CACHE TENSOROPT_BACKEND PROPERTY STRINGS "IMGDNN")
+if(TENSOROPT_BACKEND STREQUAL "")
+  message(FATAL_ERROR "No backend provided, use -DTENSOROPT_BACKEND to set one.")
+endif()
 
 option(TENSOROPT_VERBOSE_LOG "Enable verbose logging for debugging purposes" OFF)
 
@@ -59,11 +62,7 @@ if(EXISTS ${backend_subdir})
   message(STATUS "Using ${TENSOROPT_BACKEND} backend")
   add_subdirectory(${backend_subdir})
 else()
-  if(TENSOROPT_BACKEND STREQUAL "")
-    message(FATAL_ERROR "No backend provided, use -DTENSOROPT_BACKEND to set one.")
-  else()
-    message(FATAL_ERROR "Unknown backend '${TENSOROPT_BACKEND}'")
-  endif()
+  message(FATAL_ERROR "Unknown backend '${TENSOROPT_BACKEND}'")
 endif()
 
 add_library(tensoropt "")
