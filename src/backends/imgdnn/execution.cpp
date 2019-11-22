@@ -106,6 +106,8 @@ ResultCode ANeuralNetworksExecution_setInput(
     BACKEND_CALL_RET(ret, imgdnnBindingAddInput, execution->imgdnn_binding_,
                      execution->imgdnn_inputs_[uindex], img_memory);
     IMGDNN_RETURN_ERR_IF_ERROR(ret);
+    // Store the memory objects to free them after the execution
+    execution->imgdnn_memories_.push_back(img_memory);
   }
   return ANEURALNETWORKS_NO_ERROR;
 }
@@ -149,7 +151,9 @@ ResultCode ANeuralNetworksExecution_setOutput(
     BACKEND_CALL_RET(ret, imgdnnBindingAddOutput, execution->imgdnn_binding_,
                      execution->imgdnn_outputs_[uindex], img_memory);
     IMGDNN_RETURN_ERR_IF_ERROR(ret);
-    // Store these memory objects to be able to lock them later
+    // Store the memory objects to free them after the execution
+    execution->imgdnn_memories_.push_back(img_memory);
+    // Store the memory objects to be able to lock them later
     execution->host_output_memories.emplace_back(data, img_memory);
   }
   return ANEURALNETWORKS_NO_ERROR;
@@ -285,9 +289,12 @@ ResultCode ANeuralNetworksExecution_compute(
  * @param ret error code
  */
 inline void interopCheckImgdnnErr(imgdnn_err_code ret) {
+  TENSOROPT_UNUSED_VARIABLE(ret);
+#ifdef VERBOSE_LOG
   if (ret != IMGDNN_SUCCESS) {
-    printf("Error: IMGDNN execution failed with code %d", ret);
+    VLOG_AT("Error: IMGDNN execution failed with code " << ret);
   }
+#endif
 }
 
 /**
@@ -330,35 +337,48 @@ ResultCode ANeuralNetworksExecution_startCompute(
               .get_access<cl::sycl::access::mode::write>(cgh));
     }
     cgh.interop_task([execution](const cl::sycl::codeplay::interop_handle& h) {
+      // imgdnn_memories objects need to be copied locally so that the next
+      // execution is not blocked
+      std::vector<imgdnn_memory> task_memories;
+      task_memories.reserve(execution->imgdnn_memories_.size() +
+                            execution->input_indexed_accessors.size() +
+                            execution->output_indexed_accessors.size());
+      task_memories = execution->imgdnn_memories_;
+      execution->imgdnn_memories_.clear();
+      imgdnn_err_code ret;
       // Bind inputs
       for (const auto& acc_pair : execution->input_indexed_accessors) {
         imgdnn_memory img_memory =
             importImgMemory(execution, acc_pair.second, h);
-        imgdnn_err_code ret;
         BACKEND_CALL_RET(ret, imgdnnBindingAddInput, execution->imgdnn_binding_,
                          execution->imgdnn_inputs_[acc_pair.first], img_memory);
         interopCheckImgdnnErr(ret);
+        task_memories.push_back(img_memory);
       }
 
       // Bind outputs
       for (const auto& acc_pair : execution->output_indexed_accessors) {
         imgdnn_memory img_memory =
             importImgMemory(execution, acc_pair.second, h);
-        imgdnn_err_code ret;
         BACKEND_CALL_RET(
             ret, imgdnnBindingAddOutput, execution->imgdnn_binding_,
             execution->imgdnn_outputs_[acc_pair.first], img_memory);
         interopCheckImgdnnErr(ret);
+        task_memories.push_back(img_memory);
       }
       execution->identified_memory_lock.unlock();
 
-      // Cannot use BACKEND_CALL_RET here as the macro uses std::cout.
       // The IMGDNN execution is made blocking so that the returned
       // SYCL event represents the execution of the whole graph.
-      auto ret = imgdnnNetworkObjectExecute(execution->imgdnn_network_object_,
-                                            execution->imgdnn_binding_, true, 0,
-                                            nullptr, nullptr);
+      BACKEND_CALL_RET(ret, imgdnnNetworkObjectExecute,
+                       execution->imgdnn_network_object_,
+                       execution->imgdnn_binding_, true, 0, nullptr, nullptr);
       interopCheckImgdnnErr(ret);
+
+      for (auto img_mem : task_memories) {
+        BACKEND_CALL_RET(ret, imgdnnMemoryDestroy, img_mem);
+        interopCheckImgdnnErr(ret);
+      }
     });
   });
   execution->dimensions.clear();

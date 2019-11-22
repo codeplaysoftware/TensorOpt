@@ -82,6 +82,7 @@ struct ANeuralNetworksExecution {
   imgdnn_binding imgdnn_binding_;
   std::vector<imgdnn_input> imgdnn_inputs_;
   std::vector<imgdnn_output> imgdnn_outputs_;
+  std::vector<imgdnn_memory> imgdnn_memories_;
 };
 
 #endif  // SRC_BACKENDS_IMGDNN_EXECUTION_HPP
