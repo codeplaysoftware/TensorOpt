@@ -151,8 +151,6 @@ ResultCode ANeuralNetworksExecution_setOutput(
     BACKEND_CALL_RET(ret, imgdnnBindingAddOutput, execution->imgdnn_binding_,
                      execution->imgdnn_outputs_[uindex], img_memory);
     IMGDNN_RETURN_ERR_IF_ERROR(ret);
-    // Store the memory objects to free them after the execution
-    execution->imgdnn_memories_.push_back(img_memory);
     // Store the memory objects to be able to lock them later
     execution->host_output_memories.emplace_back(data, img_memory);
   }
@@ -404,6 +402,10 @@ ResultCode ANeuralNetworksExecution_notifyWait(
         "Error: IMGDNN returned a different host pointer from imported memory",
         ANEURALNETWORKS_BAD_DATA);
     BACKEND_CALL_RET(ret, imgdnnMemoryUnlock, hom.img_mem);
+    IMGDNN_RETURN_ERR_IF_ERROR(ret);
+
+    // Destroy output memory now it's been read
+    BACKEND_CALL_RET(ret, imgdnnMemoryDestroy, hom.img_mem);
     IMGDNN_RETURN_ERR_IF_ERROR(ret);
   }
   execution->host_output_memories.clear();
