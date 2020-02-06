@@ -151,7 +151,7 @@ ResultCode ANeuralNetworksExecution_setOutput(
     BACKEND_CALL_RET(ret, imgdnnBindingAddOutput, execution->imgdnn_binding_,
                      execution->imgdnn_outputs_[uindex], img_memory);
     IMGDNN_RETURN_ERR_IF_ERROR(ret);
-    // Store the memory objects to be able to lock them later
+    // Store the memory objects to be able to lock and free them later
     execution->host_output_memories.emplace_back(data, img_memory);
   }
   return ANEURALNETWORKS_NO_ERROR;
