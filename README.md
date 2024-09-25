@@ -1,5 +1,7 @@
 # TensorOpt
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/codeplaysoftware/TensorOpt/badge)](https://scorecard.dev/viewer/?uri=github.com/codeplaysoftware/TensorOpt)
+
 TensorOpt is designed as a wrapper around ML graph libraries.
 Its purpose is to be integrated in ML frameworks using SYCL such as TensorFlow.
 
